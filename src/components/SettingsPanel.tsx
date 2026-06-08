@@ -56,12 +56,7 @@ export default function SettingsPanel({ config, selectedBroker, onSave }: Settin
     if (preset) {
       setServer(preset.server);
       setPort(preset.port);
-      // Generate a dynamic, unique client ID suffix to prevent collision loops on MyQTTHub
-      const randSuffix = Math.random().toString(36).substring(2, 8);
-      const dynamicClientId = preset.clientId === "web_client_001"
-        ? `web_client_${randSuffix}`
-        : (preset.clientId || `web_${randSuffix}`);
-      setClientId(dynamicClientId);
+      setClientId(preset.clientId);
       setUser(preset.user);
       setPass(preset.pass);
     }
@@ -159,8 +154,10 @@ export default function SettingsPanel({ config, selectedBroker, onSave }: Settin
                 className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 text-xs font-mono text-emerald-400 p-2.5 rounded-xl focus:outline-none transition-colors"
                 placeholder="Dibuat otomatis bila kosong"
               />
-              <p className="text-[9px] text-amber-500/85 font-mono mt-1 leading-normal">
-                ⚠️ Hindari menyamakan Client ID dengan ESP32 atau tab browser lain agar tidak terjadi tabrakan (saling disconnect) di MyQTTHub.
+              <p className="text-[10px] text-amber-500/90 font-mono mt-1.5 leading-relaxed bg-amber-500/10 p-2 rounded border border-amber-500/20">
+                <span className="font-bold text-amber-400">⚠️ PERHATIAN KHUSUS MYQTTHUB:</span><br/>
+                1. Setiap Client ID <b>WAJIB</b> didaftarkan secara manual pada menu 'Devices' di dashboard web MyQTTHub Anda. Jika Anda memakai ID yang tidak terdaftar, broker akan langsung menolak (diputus tiba-tiba).<br/>
+                2. Hindari menyamakan Client ID dengan ESP32 atau server lain. <b>Bila frontend-mu di-host di Vercel/Railway, matikan tab AI Studio ini.</b> Jika AI Studio & Railway/Vercel backend berjalan bersamaan memakai ID yang sama persis, mereka akan saling "menendang" satu sama lain (disconnect-reconnect loop).
               </p>
             </div>
 

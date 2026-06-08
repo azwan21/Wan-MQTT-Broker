@@ -43,7 +43,7 @@ const dbState = {
   config: {
     server: "node02.myqtthub.com",
     port: 1883,
-    clientId: "web_client_" + Math.random().toString(36).substring(2, 8),
+    clientId: "web_client",
     user: "web",
     pass: "123"
   },
@@ -85,6 +85,13 @@ function connectMQTT() {
 
   dbState.mqttConnecting = true;
   dbState.mqttConnected = false;
+
+  if (!dbState.config.clientId || dbState.config.clientId.trim() === "") {
+    addLog("error", "Koneksi digagalkan: Client ID tidak boleh kosong!");
+    addLog("info", "MyQTTHub mewajibkan Client ID yang secara spesifik didaftarkan di portal web mereka.");
+    dbState.mqttConnecting = false;
+    return;
+  }
   
   const protocol = dbState.config.port === 8883 ? "mqtts" : "mqtt";
   addLog("info", `Mencoba menautkan ke: ${protocol}://${dbState.config.server}:${dbState.config.port}...`);
@@ -92,7 +99,7 @@ function connectMQTT() {
   // Optimized settings for aggressive network/broker keepalive and instant recovery
   const options: mqtt.IClientOptions = {
     port: dbState.config.port,
-    clientId: dbState.config.clientId || `web_${Math.random().toString(36).substring(2, 8)}`,
+    clientId: dbState.config.clientId,
     username: dbState.config.user || undefined,
     password: dbState.config.pass || undefined,
     rejectUnauthorized: false, // Bypass local trust chains for TLS
