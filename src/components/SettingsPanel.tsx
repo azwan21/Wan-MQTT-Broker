@@ -11,7 +11,7 @@ interface SettingsPanelProps {
 const BROKER_PRESETS: Record<string, MQTTConfig> = {
   myqtthub: {
     server: "node02.myqtthub.com",
-    port: 8883,
+    port: 1883,
     clientId: "web_client_001",
     user: "web",
     pass: "123",
@@ -56,7 +56,12 @@ export default function SettingsPanel({ config, selectedBroker, onSave }: Settin
     if (preset) {
       setServer(preset.server);
       setPort(preset.port);
-      setClientId(preset.clientId);
+      // Generate a dynamic, unique client ID suffix to prevent collision loops on MyQTTHub
+      const randSuffix = Math.random().toString(36).substring(2, 8);
+      const dynamicClientId = preset.clientId === "web_client_001"
+        ? `web_client_${randSuffix}`
+        : (preset.clientId || `web_${randSuffix}`);
+      setClientId(dynamicClientId);
       setUser(preset.user);
       setPass(preset.pass);
     }
@@ -154,6 +159,9 @@ export default function SettingsPanel({ config, selectedBroker, onSave }: Settin
                 className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 text-xs font-mono text-emerald-400 p-2.5 rounded-xl focus:outline-none transition-colors"
                 placeholder="Dibuat otomatis bila kosong"
               />
+              <p className="text-[9px] text-amber-500/85 font-mono mt-1 leading-normal">
+                ⚠️ Hindari menyamakan Client ID dengan ESP32 atau tab browser lain agar tidak terjadi tabrakan (saling disconnect) di MyQTTHub.
+              </p>
             </div>
 
             {/* MQTT Username / Token */}

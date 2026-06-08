@@ -42,8 +42,8 @@ const dbState = {
   selectedBroker: "myqtthub", // 'myqtthub' or 'flespi' or 'custom'
   config: {
     server: "node02.myqtthub.com",
-    port: 8883,
-    clientId: "web_client_001",
+    port: 1883,
+    clientId: "web_client_" + Math.random().toString(36).substring(2, 8),
     user: "web",
     pass: "123"
   },
@@ -80,30 +80,35 @@ function connectMQTT() {
     try {
       mqttClient.end(true);
     } catch (e) {}
+    mqttClient = null;
   }
 
   dbState.mqttConnecting = true;
   dbState.mqttConnected = false;
   
   const protocol = dbState.config.port === 8883 ? "mqtts" : "mqtt";
-  addLog("info", `Menghubungkan ke MQTT broker: ${protocol}://${dbState.config.server}:${dbState.config.port}...`);
+  addLog("info", `Mencoba menautkan ke: ${protocol}://${dbState.config.server}:${dbState.config.port}...`);
 
+  // Optimized settings for aggressive network/broker keepalive and instant recovery
   const options: mqtt.IClientOptions = {
     port: dbState.config.port,
     clientId: dbState.config.clientId || `web_${Math.random().toString(36).substring(2, 8)}`,
     username: dbState.config.user || undefined,
     password: dbState.config.pass || undefined,
     rejectUnauthorized: false, // Bypass local trust chains for TLS
-    connectTimeout: 8000,
-    reconnectPeriod: 15000,
+    connectTimeout: 12000, // Wait up to 12s before timing out
+    reconnectPeriod: 8000, // Reconnect every 8s instead of 3s to avoid rapid rate-limiting by MyQTTHub
+    keepalive: 45, // Keepalive 45s is the sweet spot for MyQTTHub stability
+    clean: true, // Always request clean session for state freshness
   };
 
   const brokerUrl = `${protocol}://${dbState.config.server}`;
+  addLog("info", `Menggunakan Client ID: "${options.clientId}"`);
 
   try {
     mqttClient = mqtt.connect(brokerUrl, options);
 
-    mqttClient.on("connect", () => {
+    mqttClient.on("connect", (connack) => {
       dbState.mqttConnected = true;
       dbState.mqttConnecting = false;
       
@@ -114,7 +119,8 @@ function connectMQTT() {
         custom: "Broker Kustom"
       };
       const bName = brokerNames[dbState.selectedBroker] || "MQTT";
-      addLog("success", `Web BERHASIL terhubung ke Broker ${bName}`);
+      addLog("success", `Koneksi BERHASIL Terbuka ke ${bName}`);
+      addLog("success", `Detail Sesi: SessionPresent=${connack.sessionPresent}, StatusReturnCode=${connack.reasonCode || 0}`);
 
       // Subscribe to active topics on Arduino sketch without printing logs
       mqttClient?.subscribe("sensor/suhu");
@@ -122,17 +128,44 @@ function connectMQTT() {
       mqttClient?.subscribe("kontrol/+");
     });
 
+    mqttClient.on("reconnect", () => {
+      dbState.mqttConnecting = true;
+      addLog("info", "Menjalankan auto-reconnect berkala ke broker MQTT (setiap 8 detik)...");
+    });
+
+    mqttClient.on("offline", () => {
+      if (dbState.mqttConnected) {
+        dbState.mqttConnected = false;
+        addLog("warning", "Status Jaringan: Web offline (kehilangan kontak) dengan broker.");
+      }
+    });
+
     mqttClient.on("error", (err) => {
       dbState.mqttConnected = false;
       dbState.mqttConnecting = false;
-      addLog("error", `Koneksi MQTT error: ${err.message}`);
+      const errMsg = err ? err.message : "Error tidak diketahui";
+      addLog("error", `MQTT ERROR: ${errMsg}`);
+      
+      // Auto-terminate client reconnection loop if there is a clear auth/credential failure
+      if (errMsg.includes("Not authorized") || errMsg.includes("Bad username") || errMsg.includes("identifier rejected")) {
+        addLog("error", "Kritikal: Otentikasi ditolak oleh broker! Menghentikan auto-reconnect untuk menghindari banned IP.");
+        addLog("info", "Silakan periksa kembali Host, Port, Username, Password, dan Client ID di bilah Pengaturan.");
+        if (mqttClient) {
+          mqttClient.end(true);
+          mqttClient = null;
+        }
+      }
     });
 
     mqttClient.on("close", () => {
-      if (dbState.mqttConnected) {
-        dbState.mqttConnected = false;
-        addLog("warning", "Koneksi ke broker MQTT terputus (connection closed)");
-      }
+      const wasConnected = dbState.mqttConnected;
+      dbState.mqttConnected = false;
+      dbState.mqttConnecting = false;
+      addLog("warning", wasConnected 
+        ? "Koneksi diputus oleh pihak broker secara tiba-tiba."
+        : "Saluran koneksi ditutup. Gagal menjangkau broker (Periksa koneksi internet / kredensial)."
+      );
+      addLog("info", "Saran MyQTTHub: Cek apakah Client ID sudah terdaftar di Web MyQTTHub & pastikan tidak dipakai di ESP32 pada saat bersamaan.");
     });
 
     mqttClient.on("message", (topic, message) => {
