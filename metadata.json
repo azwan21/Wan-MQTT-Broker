@@ -1,0 +1,10 @@
+{
+  "name": "RIDWAN-MQTT Voice Controller",
+  "description": "Professional MQTT web dashboard for quad-relay control featuring voice commands, real-time activity logs, and secure broker connectivity.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
